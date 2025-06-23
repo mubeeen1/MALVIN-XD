@@ -2,7 +2,7 @@ const { malvin } = require("../malvin");
 
 malvin({
   pattern: "vv",
-  alias: ["viewonce", 'retrive'],
+  alias: ["viewonce", 'retrive','wow','ok', 'nice','🙂'],
   react: '🐳',
   desc: "Owner Only - retrieve quoted message back to user",
   category: "owner",
