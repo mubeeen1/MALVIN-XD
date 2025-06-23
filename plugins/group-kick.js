@@ -26,31 +26,42 @@ async (conn, mek, m, {
     // Check if the user wants to remove all members
     if (q && q.toLowerCase() === 'all') {
         try {
-            const participants = await groupMetadata.participants;
+            // Get fresh group metadata
+            const metadata = await conn.groupMetadata(from);
+            const participants = metadata.participants;
+            
+            // Filter out admins and the bot itself
             const nonAdminParticipants = participants.filter(
-                participant => !participant.admin
+                participant => !participant.admin && participant.id !== conn.user.id
             ).map(p => p.id);
 
-            // Don't remove the bot itself
-            const botJid = conn.user.id;
-            const participantsToRemove = nonAdminParticipants.filter(jid => jid !== botJid);
-
-            if (participantsToRemove.length === 0) {
+            if (nonAdminParticipants.length === 0) {
                 return reply("❌ No non-admin members to remove.");
             }
 
             // Remove in batches to avoid rate limiting
-            const batchSize = 10;
-            for (let i = 0; i < participantsToRemove.length; i += batchSize) {
-                const batch = participantsToRemove.slice(i, i + batchSize);
-                await conn.groupParticipantsUpdate(from, batch, "remove");
-                await new Promise(resolve => setTimeout(resolve, 2000)); // Delay between batches
+            const batchSize = 5; // Reduced batch size for better reliability
+            let successCount = 0;
+            
+            for (let i = 0; i < nonAdminParticipants.length; i += batchSize) {
+                const batch = nonAdminParticipants.slice(i, i + batchSize);
+                try {
+                    await conn.groupParticipantsUpdate(from, batch, "remove");
+                    successCount += batch.length;
+                    await new Promise(resolve => setTimeout(resolve, 2500)); // 2.5 second delay
+                } catch (batchError) {
+                    console.error(`Error removing batch ${i}-${i+batchSize}:`, batchError);
+                }
             }
 
-            return reply(`✅ Successfully removed ${participantsToRemove.length} members.`);
+            if (successCount > 0) {
+                return reply(`✅ Successfully removed ${successCount} members.`);
+            } else {
+                return reply("❌ Failed to remove any members.");
+            }
         } catch (error) {
             console.error("Remove all command error:", error);
-            return reply("❌ Failed to remove members.");
+            return reply("❌ Failed to remove members. Possible permission issues.");
         }
     }
 
